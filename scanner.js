@@ -300,7 +300,59 @@ async function pollCongress() {
   }
 }
 
+async function testTrumpAlert() {
+  console.log("🧪 Test mode: fetching latest real post and forcing it through the alert pipeline...");
+  if (!CONFIG.scrapeCreatorsKey) {
+    console.error("❌ No SCRAPECREATORS_API_KEY set — can't test.");
+    return;
+  }
+  const { status, body } = await httpGetJson(
+    `https://api.scrapecreators.com/v1/truthsocial/user/posts?user_id=${TRUMP_USER_ID}`,
+    { "x-api-key": CONFIG.scrapeCreatorsKey }
+  );
+  if (status !== 200 || !body) {
+    console.error(`❌ Feed error: HTTP ${status}`, body?.raw || "");
+    return;
+  }
+  const posts = body.posts || body.data || [];
+  if (!posts.length) {
+    console.error("❌ No posts returned at all.");
+    return;
+  }
+
+  const post = posts[0]; // most recent real post, regardless of "new" status
+  const text = (post.text || post.content || "").replace(/<[^>]+>/g, "");
+  const { hits, explicitTickers } = analyzePost(text);
+
+  console.log(`📣 Latest real post: "${text.slice(0, 100)}..."`);
+  console.log(`   Matched ${hits.length} keyword group(s), ${explicitTickers.length} explicit ticker(s)`);
+
+  const tickerSet = new Set(explicitTickers);
+  const lines = hits.map(h => {
+    h.tickers.forEach(t => tickerSet.add(t));
+    return `• *${h.note}* (matched: ${h.matched.join(", ")})`;
+  });
+
+  let guidance;
+  if (hits.some(h => h.type === "macro")) guidance = INSTRUMENT_GUIDANCE.macro;
+  else if (hits.some(h => h.type === "sector")) guidance = INSTRUMENT_GUIDANCE.sector;
+  else if (explicitTickers.length > 0) guidance = INSTRUMENT_GUIDANCE.ticker;
+
+  const msg =
+    `🧪 *TEST ALERT* (forced, using your latest real post)\n\n` +
+    `"${text.slice(0, 500)}${text.length > 500 ? "..." : ""}"\n\n` +
+    (lines.length ? `*Matched themes:*\n${lines.join("\n")}\n\n` : `_No market keywords matched this post — showing anyway since this is a test._\n\n`) +
+    (tickerSet.size ? `*Watch tickers:* ${[...tickerSet].map(t => `$${t}`).join(" ")}\n\n` : "") +
+    (guidance ? `${guidance}\n\n` : "") +
+    `_Posted: ${post.created_at || "unknown"}_\n` +
+    `_This is a forced test — the real bot only alerts on genuinely NEW posts._`;
+
+  await sendTelegram(msg);
+  console.log("✅ Test alert sent to Telegram — check your group.");
+}
+
 // ─── Start ────────────────────────────────────────────────────────────────────
+console.log("🔍 Debug — raw arguments received:", JSON.stringify(process.argv));
 console.log("═══════════════════════════════════════════════════");
 console.log("  Insider Signal Scanner");
 console.log(`  Feed 1: Trump posts — every ${CONFIG.trumpPollMs / 1000}s ${CONFIG.scrapeCreatorsKey ? "✅" : "❌ (no SCRAPECREATORS_API_KEY)"}`);
@@ -309,5 +361,10 @@ console.log("══════════════════════�
 
 pollTrump();
 pollCongress();
-setInterval(pollTrump, CONFIG.trumpPollMs);
-setInterval(pollCongress, CONFIG.congressPollMs);
+
+if (process.argv.includes("--test-trump")) {
+  testTrumpAlert();
+} else {
+  setInterval(pollTrump, CONFIG.trumpPollMs);
+  setInterval(pollCongress, CONFIG.congressPollMs);
+}
