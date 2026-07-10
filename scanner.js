@@ -48,7 +48,8 @@ const KEYWORD_MAP = [
   { kw: ["china", "chinese"], tickers: ["FXI", "KWEB", "BABA", "NVDA"], note: "China exposure", type: "sector" },
   { kw: ["crypto", "bitcoin", "digital asset", "strategic reserve"], tickers: ["BTC", "COIN", "MSTR", "MARA", "RIOT"], note: "Crypto policy", type: "sector" },
   { kw: ["drug price", "pharma", "prescription"], tickers: ["XLV", "PFE", "MRK", "LLY", "UNH"], note: "Pharma/healthcare policy", type: "sector" },
-  { kw: ["oil", "drill", "energy", "opec"], tickers: ["XLE", "XOM", "CVX", "OXY"], note: "Energy policy", type: "sector" },
+  { kw: ["oil", "drill", "energy", "opec", "iran", "hormuz", "strait of hormuz"], tickers: ["CL=F", "USO", "XLE", "XOM", "CVX", "OXY"], note: "Energy/oil — includes crude futures directly", type: "sector" },
+  { kw: ["truth social", "trump media", "djt"], tickers: ["DJT"], note: "⚡ Trump's own company — historically moves hard on ANY Trump-related news, even unrelated to the business. Thin float — size small.", type: "ticker" },
   { kw: ["auto", "cars", "ev mandate", "electric vehicle"], tickers: ["TSLA", "F", "GM", "RIVN"], note: "Auto sector", type: "sector" },
   { kw: ["defense", "military", "nato"], tickers: ["ITA", "LMT", "RTX", "NOC"], note: "Defense sector", type: "sector" },
   { kw: ["fed", "powell", "interest rate", "rates"], tickers: ["TLT", "SPY", "GLD", "IWM"], note: "Fed/rates commentary", type: "macro" },
@@ -179,14 +180,14 @@ async function pollTrump() {
         return `• *${h.note}* (matched: ${h.matched.join(", ")})`;
       });
 
-      // Pick instrument guidance: macro > sector > pure-ticker-only, in that
-      // priority order (a post can match multiple themes; macro dominates).
+      // Pick instrument guidance: macro > sector > ticker(-type keyword or
+      // explicit $TICKER), in that priority order.
       let guidance;
       if (hits.some(h => h.type === "macro")) {
         guidance = INSTRUMENT_GUIDANCE.macro;
       } else if (hits.some(h => h.type === "sector")) {
         guidance = INSTRUMENT_GUIDANCE.sector;
-      } else if (explicitTickers.length > 0) {
+      } else if (hits.some(h => h.type === "ticker") || explicitTickers.length > 0) {
         guidance = INSTRUMENT_GUIDANCE.ticker;
       }
 
@@ -336,7 +337,7 @@ async function testTrumpAlert() {
   let guidance;
   if (hits.some(h => h.type === "macro")) guidance = INSTRUMENT_GUIDANCE.macro;
   else if (hits.some(h => h.type === "sector")) guidance = INSTRUMENT_GUIDANCE.sector;
-  else if (explicitTickers.length > 0) guidance = INSTRUMENT_GUIDANCE.ticker;
+  else if (hits.some(h => h.type === "ticker") || explicitTickers.length > 0) guidance = INSTRUMENT_GUIDANCE.ticker;
 
   const msg =
     `🧪 *TEST ALERT* (forced, using your latest real post)\n\n` +
