@@ -2,5 +2,5 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "node scanner.js"
+startCommand = "node scanner.js --test-trump"
 restartPolicyType = "always"
